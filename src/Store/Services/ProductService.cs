@@ -1,30 +1,53 @@
 ﻿using DataEntities;
-using System.Text.Json;
 
 namespace Store.Services;
 
-public class ProductService
+public class ProductService(HttpClient httpClient)
 {
-    HttpClient httpClient;
-    public ProductService(HttpClient httpClient)
-    {
-        this.httpClient = httpClient;
-    }
     public async Task<List<Product>> GetProducts()
     {
-        List<Product>? products = null;
-        var response = await httpClient.GetAsync("/api/Product");
-        if (response.IsSuccessStatusCode)
-        {
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
+        using var response = await httpClient.GetAsync("/api/Product");
+        response.EnsureSuccessStatusCode();
 
-            products = await response.Content.ReadFromJsonAsync(ProductSerializerContext.Default.ListProduct);
-        }
-
-        return products ?? new List<Product>();
+        return await response.Content.ReadFromJsonAsync(ProductSerializerContext.Default.ListProduct)
+            ?? throw new InvalidOperationException("The Products API returned an empty response.");
     }
-    
+
+    public async Task<Product?> GetProduct(int id)
+    {
+        using var response = await httpClient.GetAsync($"/api/Product/{id}");
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            return null;
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync(ProductSerializerContext.Default.Product)
+            ?? throw new InvalidOperationException("The Products API returned an empty response.");
+    }
+
+    public async Task<Product> CreateProduct(Product product)
+    {
+        using var response = await httpClient.PostAsJsonAsync(
+            "/api/Product",
+            product,
+            ProductSerializerContext.Default.Product);
+        response.EnsureSuccessStatusCode();
+
+        return await response.Content.ReadFromJsonAsync(ProductSerializerContext.Default.Product)
+            ?? throw new InvalidOperationException("The Products API returned an empty response.");
+    }
+
+    public async Task UpdateProduct(int id, Product product)
+    {
+        using var response = await httpClient.PutAsJsonAsync(
+            $"/api/Product/{id}",
+            product,
+            ProductSerializerContext.Default.Product);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task DeleteProduct(int id)
+    {
+        using var response = await httpClient.DeleteAsync($"/api/Product/{id}");
+        response.EnsureSuccessStatusCode();
+    }
 }
